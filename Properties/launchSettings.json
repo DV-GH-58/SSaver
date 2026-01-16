@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "SSaver (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "SSaver (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
