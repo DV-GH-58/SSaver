@@ -13,11 +13,19 @@
                   Subtitle="" Visibility="Collapsed">
             <!--  Temporary Fix TitleBar Icon  -->
         </TitleBar>
-        <canvas:CanvasControl x:Name="Canvas" 
+        <!--<canvas:CanvasControl x:Name="Canvas" 
                               Draw="Canvas_Draw" 
-                              ClearColor="Black" HorizontalAlignment="Stretch" Height="1100" VerticalAlignment="Top" Margin="10"/>
-        
-        
+                              ClearColor="Black" HorizontalAlignment="Stretch" Height="1100" VerticalAlignment="Top" Margin="10"/>-->
+
+        <canvas:CanvasAnimatedControl x:Name="Canvas" 
+            Draw="Canvas_Draw" 
+            Update="Canvas_Update"
+            ClearColor="Black" 
+            Height="1100" 
+            HorizontalAlignment="Stretch" 
+            VerticalAlignment="Top" 
+            Margin="10"/>
+
         <Image Source="/Assets/Instruments.png" VerticalAlignment="Bottom" HorizontalAlignment="Stretch" Opacity="0.1"/>
 
     </Grid>

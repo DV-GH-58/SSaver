@@ -3,6 +3,8 @@ using System.Diagnostics.Metrics;
 using System.Drawing;
 using System.Formats.Asn1;
 using System.Numerics;
+using System.ServiceModel.Syndication;
+using System.Xml;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Brushes;
 using Microsoft.Graphics.Canvas.Text;
@@ -20,9 +22,53 @@ namespace SSaver.Views;
 public sealed partial class MainWindow : Window
 {
     string SSText = DateTime.Now.ToString("t");
-    string SSText_NL = DateTime.Now.ToString("ddd") + " " + DateTime.Now.ToString("d");
+    string SSText_NL = "";
+    private IList<SyndicationItem> Items;
+    private string FeedText = DateTime.Now.ToString("t");
+    private float X_Counter = 0;
+    private float Y_Counter = 0;
+    private int FeedListIdx = 0;
+    private readonly Starfield _starfield;
 
-    private Starfield _starfield;
+    public async Task RefreshAsync()
+    {
+        try
+        {
+            Items = await LoadRssAsync("https://www.nu.nl/rss");
+            if (Items == null || Items.Count == 0)
+            {
+                FeedText = "No RSS feed items found.";
+            }
+            else
+            {
+                FeedText = Items.Count.ToString();
+            }
+        }
+        catch (Exception)
+        {
+            FeedText = "Failed to load RSS feed.";
+        }
+        finally
+        {
+            if (Items != null)
+            {
+                FeedListIdx = 0;
+            }
+            SSText_NL = DateTime.Now.ToString("ddd") + " " + DateTime.Now.ToString("d");
+        }
+    }
+
+    public async Task<IList<SyndicationItem>> LoadRssAsync(string url)
+    {
+        using var client = new HttpClient();
+        var stream = await client.GetStreamAsync(url);
+
+        using var reader = XmlReader.Create(stream);
+        var feed = SyndicationFeed.Load(reader);
+
+        return feed?.Items?.ToList() ?? new List<SyndicationItem>();
+    }
+
     public MainWindow()
     {
         this.InitializeComponent();
@@ -34,40 +80,70 @@ public sealed partial class MainWindow : Window
 
         Canvas.Draw += Canvas_Draw;
         Canvas.CreateResources += Canvas_CreateResources;
-
         Canvas.PointerMoved += CloseOnInput;
         Canvas.PointerPressed += CloseOnInput;
         Canvas.KeyDown += CloseOnInput;
-
     }
 
-    private CanvasBitmap? _image;
+    private void CloseOnInput(object sender, object e)
+    {
+        Close();
+    }
 
-    private async Task LoadImageAsync(CanvasControl sender)
+
+    private CanvasBitmap _image;
+
+    private async Task LoadImageAsync(CanvasAnimatedControl sender)
     {
         _image = await CanvasBitmap.LoadAsync(sender, "Assets/background.jpg");
 
-        /// load rss feed here and parse headlines
-        /// https://www.nu.nl/rss
-        /// then display them one by one in the starfield
-        
+        await RefreshAsync();
 
+        //if (Items != null)
+        //{
+        //    if (Items.Count == 0)
+        //        return;
+        //    var i = Items[FeedListIdx++];
+        //    if (i != null)
+        //    {
+        //        var _tmp = i.Title.Text;
+        //        FeedText = _tmp;
+        //    }
+        //}
+        //else
+        //{
+        //    FeedText = "No RSS feed items found.";
+        //}
     }
 
-    private void Canvas_CreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
+    private void Canvas_CreateResources(CanvasAnimatedControl sender, CanvasCreateResourcesEventArgs args)
     {
         args.TrackAsyncAction(LoadImageAsync(sender).AsAsyncAction());
 
         _starfield.Initialize(sender);
     }
 
-    private void Canvas_Draw(CanvasControl sender, CanvasDrawEventArgs args)
+    private void Canvas_Draw(ICanvasAnimatedControl sender, CanvasAnimatedDrawEventArgs args)
     {
-        int pos = DateTime.Now.Minute % 2;
+        var pos = DateTime.Now.Minute % 2;
 
         var textFormat = new CanvasTextFormat()
         {
-            FontSize = 100,
+            FontSize = 200,
+            FontFamily = "Segoe UI",
+            HorizontalAlignment = CanvasHorizontalAlignment.Center,
+            VerticalAlignment = CanvasVerticalAlignment.Bottom
+        };
+        var textDayOfWeekFormat = new CanvasTextFormat()
+        {
+            FontSize = 80,
+            FontFamily = "Segoe UI",
+            HorizontalAlignment = CanvasHorizontalAlignment.Center,
+            VerticalAlignment = CanvasVerticalAlignment.Bottom
+        };
+        var textFormatRSS = new CanvasTextFormat()
+        {
+            FontSize = 50,
             FontFamily = "Segoe UI",
             HorizontalAlignment = CanvasHorizontalAlignment.Center,
             VerticalAlignment = CanvasVerticalAlignment.Bottom
@@ -75,7 +151,7 @@ public sealed partial class MainWindow : Window
 
         if (_image != null)
         {
-            args.DrawingSession.DrawImage(_image, 0, 0, new Windows.Foundation.Rect(0,0, (float)sender.ActualWidth, (float)sender.ActualHeight), opacity: 0.2f); // draw at X=100, Y=100 }
+            args.DrawingSession.DrawImage(_image, 0, 0, new Windows.Foundation.Rect(0, 0, (float)sender.Size.Width, (float)sender.Size.Height), opacity: 0.2f); // draw at X_Counter=100, Y_Counter=100 }
         }
 
         // update to current time\
@@ -84,109 +160,51 @@ public sealed partial class MainWindow : Window
         _starfield.Update(sender);
         _starfield.Draw(sender, args.DrawingSession);
 
-        args.DrawingSession.DrawText(SSText, (float)sender.ActualWidth/2, (float)sender.ActualHeight / 4 * (1+pos),
+        args.DrawingSession.DrawText(SSText, (float)sender.Size.Width/2, (float)sender.Size.Height / 3,
             Windows.UI.Color.FromArgb((byte)(100 - DateTime.Now.Second), 0xff, 0xff, 0xff),
             textFormat);
-        args.DrawingSession.DrawText(SSText_NL, (float)sender.ActualWidth/2, (float)sender.ActualHeight / 4 * (2+pos),
-            Windows.UI.Color.FromArgb((byte)(100 + DateTime.Now.Second), 0xff, 0xff, 0xff),
-            textFormat);
 
-        //Canvas.CenterPoint = new System.Numerics.Vector3((float)sender.ActualWidth/2, (float)sender.ActualHeight/2, 1);
-        //Canvas.Rotation = (DateTime.Now.Millisecond/10)%360-50;
-        
+        args.DrawingSession.DrawText(SSText_NL, (float)sender.Size.Width / 2, (float)sender.Size.Height / 4 * (2 + pos),
+            Windows.UI.Color.FromArgb((byte)(100 + DateTime.Now.Second), 0xff, 0xff, 0xff), textDayOfWeekFormat);
+
+        args.DrawingSession.DrawText(FeedText, (float)sender.Size.Width / 2, (float)sender.Size.Height,
+           Colors.DarkGray, textFormatRSS);
+
         Canvas.Invalidate(); // continuous animation
     }
 
-    private void CloseOnInput(object sender, object e)
+    private void Canvas_Update(ICanvasAnimatedControl sender, CanvasAnimatedUpdateEventArgs args)
     {
-        Close();
-    }
+        var delta = (float)args.Timing.ElapsedTime.TotalSeconds;
 
-    public class Starfield
-    {
-        private const int StarCount = 1000;
-        private Vector3[] _stars = new Vector3[StarCount];
-        private Random _rand = new Random();
-        private float _speed = 0.7f;
+        X_Counter += 500 * delta; // pixels per second * Direction
+        Y_Counter += 2 * delta; // pixels per second * Direction
 
-        private float _width;
-        private float _height;
-
-        public void Initialize(CanvasControl canvas)
+        if (X_Counter > sender.Size.Width)
         {
-            _width = (float)canvas.ActualWidth;
-            _height = (float)canvas.ActualHeight;
-
-            for (int i = 0; i < StarCount; i++)
-                _stars[i] = CreateStar();
+            X_Counter = 0;
         }
 
-        private Vector3 CreateStar()
+        if (Y_Counter > 2)
         {
-            return new Vector3(
-                (float)(_rand.NextDouble() * _width  - _width / 2),
-                (float)(_rand.NextDouble() * _height - _height / 2),
-                (float)(_rand.NextDouble() * _width)
-            );
-        }
+            Y_Counter = 0;
 
-        public void Update(CanvasControl canvas)
-        {
-            counter++;
-            if (counter == 1000) counter = 0;
-
-            if (counter % 10 == 0)
+            if (Items != null)
             {
-                if (_speed > 3f) _speed += 0.01f;
-            }
+                if (FeedListIdx >= Items.Count)
+                    FeedListIdx = 0;
 
+                var i = Items[FeedListIdx++];
 
-            _width = (float)canvas.ActualWidth;
-            _height = (float)canvas.ActualHeight;
-
-            for (int i = 0; i < StarCount; i++)
-            {
-                var s = _stars[i];
-                s.Z -= _speed;
-
-                if (s.Z <= 1)
-                    s = CreateStar();
-
-                _stars[i] = s;
-            }
-
-        }
-
-        // Convert System.Drawing.Color to Windows.UI.Color
-        Windows.UI.Color ToWinUIColor(System.Drawing.Color c)
-        {
-            return Windows.UI.Color.FromArgb(c.A, c.R, c.G, c.B);
-        }
-
-        public int counter { get; set; } = 0;
-
-        public void Draw(CanvasControl sender, CanvasDrawingSession ds)
-        {
-            foreach (var s in _stars)
-            {
-                float k = 128f / s.Z;
-                float x = s.X * k + _width / 2;
-                float y = s.Y * k + _height / 2;
-
-                if (x < 0 || x >= _width || y < 0 || y >= _height)
-                    continue;
-
-                float brightness = Math.Clamp(1f - (s.Z / _width), 0.1f, 1f);
-                byte b = (byte)(brightness * 255);
-
-                if (_speed < 1.5)
-                    ds.FillCircle(x, y, 8f, Windows.UI.Color.FromArgb(10,b,b,b));
-                
-                ds.FillCircle(x, y, 1f, Windows.UI.Color.FromArgb((byte)(b+50), b, b, b));
-
+                if (i != null)
+                {
+                    var _tmp = i.Title.Text;
+                    FeedText = _tmp;
+                }
             }
         }
     }
+
 }
 
 

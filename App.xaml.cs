@@ -19,7 +19,6 @@ public partial class App : Application
         MainWindow.AppWindow.SetIcon("Assets/AppIcon.ico");
         MainWindow.AppWindow.SetPresenter(Microsoft.UI.Windowing.AppWindowPresenterKind.FullScreen);
         MainWindow.Activate();
-       
     }
 }
 
